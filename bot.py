@@ -8,6 +8,7 @@ import config
 import gating
 import llm
 import memory
+import slash
 from context import ChannelContext
 
 logging.basicConfig(
@@ -46,6 +47,11 @@ async def on_ready():
             log.info(f"    monitoring {len(monitored)} channel(s)")
         else:
             log.warning(f"    NOT in channels.yml — terry will ignore this guild")
+    try:
+        synced = await bot.tree.sync()
+        log.info(f"synced {len(synced)} slash command(s)")
+    except Exception:
+        log.exception("failed to sync slash commands")
 
 
 @bot.event
@@ -123,6 +129,8 @@ async def on_message(message: discord.Message):
     else:
         log.info("terry stayed silent")
         state.record_decision(did_respond=False)
+
+slash.setup(bot)
 
 if __name__ == "__main__":
     import asyncio
