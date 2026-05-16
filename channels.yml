@@ -1,0 +1,28 @@
+# Edit this file to configure which channels terry monitors per server,
+# and who can use admin slash commands. Commit and redeploy to apply.
+# All IDs are Discord snowflake IDs (right-click in Discord with dev mode on -> Copy ID).
+
+guilds:
+  # "123456789012345678":         # Server A guild ID
+  #   - "234567890123456789"      # general channel
+  #   - "234567890123456790"      # off-topic channel
+  "1491933075129630941":    # 231
+    - "1491937200177287198" # general channel
+    - "1491939049978728650" # hall of fame
+    - "1491939107688153098" # hall of shame
+    - "1491966178242068500" # the lounge
+    - "1491966345431224441" # after dark
+    - "1491939376572137572" # memes
+
+  "1498759100157263892":    # hellfire
+    - "1500933335805989075" # playroom
+    - "1498818571407462501" # general yaps
+    - "1498780956574744626" # food
+    - "1498780593939419246" # selfies
+    - "1499549264143978607" # pets
+
+
+admins:
+  # Users allowed to run /terry memory in a given guild
+  # "123456789012345678":
+  #   - "111111111111111111"
