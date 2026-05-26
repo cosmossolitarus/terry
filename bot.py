@@ -72,7 +72,6 @@ async def on_message(message: discord.Message):
         f"{message.author.display_name}: {message.content[:80]}"
     )
 
-    # Detect forced triggers: @mention or "terry" in content
     is_mention = bot.user.mentioned_in(message)
     is_named = bool(_TERRY_NAME_RE.search(message.content))
     forced = is_mention or is_named
@@ -88,12 +87,19 @@ async def on_message(message: discord.Message):
     else:
         trigger = "organic check - decide whether to respond"
 
+    # Build the custom emoji list for this guild
+    custom_emojis = [
+        f"<{'a' if e.animated else ''}:{e.name}:{e.id}>"
+        for e in message.guild.emojis
+    ]
+
     state.is_thinking = True
     try:
         result = await llm.call_terry(
             buffer_text=ctx.render_for_prompt(),
             memories_text=memory.read(message.guild.id),
             trigger=trigger,
+            custom_emojis=custom_emojis,
         )
     finally:
         state.is_thinking = False
@@ -109,22 +115,37 @@ async def on_message(message: discord.Message):
 
     should_respond = bool(result.get("respond"))
     msg_text = result.get("message")
+    react_str = result.get("react")
 
-    # Safety net: anything directed at terry must produce a reply if a message was generated
+    # Safety net: anything directed at terry must produce a reply if a message was generated.
+    # Reaction-only responses to forced triggers are fine.
     if forced and msg_text and not should_respond:
         log.warning("directed at terry but respond=false; forcing send")
         should_respond = True
 
-    if should_respond and msg_text:
-        msg_text = msg_text[:1900]
+    did_act = False
+
+    # React first (quicker visual ack)
+    if react_str:
         try:
-            sent = await message.channel.send(msg_text)
+            await message.add_reaction(react_str.strip())
+            log.info(f"terry reacted: {react_str}")
+            did_act = True
+        except Exception:
+            log.exception(f"failed to react with: {react_str!r}")
+
+    # Then send the message
+    if should_respond and msg_text:
+        msg_text_short = msg_text[:1900]
+        try:
+            sent = await message.channel.send(msg_text_short)
             ctx.add(sent, is_terry=True)
-            log.info(f"terry replied: {msg_text[:80]}")
+            log.info(f"terry replied: {msg_text_short[:80]}")
+            did_act = True
         except Exception:
             log.exception("failed to send terry's message")
-            state.record_decision(did_respond=False)
-            return
+
+    if did_act:
         state.record_decision(did_respond=True)
     else:
         log.info("terry stayed silent")

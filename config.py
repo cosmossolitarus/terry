@@ -13,7 +13,7 @@ COSMOS_USER_ID = int(os.environ["COSMOS_USER_ID"])
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
 
 # --- tunables ---
-BUFFER_SIZE = 50
+BUFFER_SIZE = 10
 BASELINE_GATING_INTERVAL = 10   # check every N messages by default
 HIGH_FREQ_DECAY = 3             # silent checks before reverting to baseline
 QUIET_TIME_SILENCE_HOURS = 3    # silent this long before considering a quiet-time ping

@@ -29,12 +29,22 @@ def _system_blocks(memories_text: str) -> list[dict]:
     ]
 
 
-def _user_message(buffer_text: str, trigger: str) -> str:
+def _user_message(buffer_text: str, trigger: str, custom_emojis: list[str] | None) -> str:
+    emoji_block = ""
+    if custom_emojis:
+        emoji_block = (
+            "\ncustom emojis available on this server (use the exact text shown):\n"
+            + "\n".join(f"- {e}" for e in custom_emojis)
+            + "\n"
+        )
     return (
         "recent chat buffer in the channels terry watches:\n\n"
-        f"<buffer>\n{buffer_text}\n</buffer>\n\n"
-        f"trigger reason: {trigger}\n\n"
-        "decide whether to respond. output the json now."
+        f"<buffer>\n{buffer_text}\n</buffer>\n"
+        f"{emoji_block}"
+        f"\ntrigger reason: {trigger}\n\n"
+        "decide whether to respond. output ONLY the json object — no preamble, "
+        "no explanation, no narration of any tool use. "
+        "start with `{` and end with `}`."
     )
 
 
@@ -47,11 +57,6 @@ def _extract_text(response) -> str:
 
 
 def _extract_json_object(s: str) -> str | None:
-    """
-    Find the first complete top-level JSON object in s.
-    Returns None if no balanced object is found (e.g. truncated output).
-    Handles braces inside strings correctly.
-    """
     start = s.find("{")
     if start == -1:
         return None
@@ -92,21 +97,15 @@ def _parse_json(raw: str) -> dict | None:
         return None
 
 
-def _user_message(buffer_text: str, trigger: str) -> str:
-    return (
-        "recent chat buffer in the channels terry watches:\n\n"
-        f"<buffer>\n{buffer_text}\n</buffer>\n\n"
-        f"trigger reason: {trigger}\n\n"
-        "decide whether to respond. output ONLY the json object — no preamble, "
-        "no explanation, no narration of any tool use. "
-        "start with `{` and end with `}`."
-    )
-
-
-async def call_terry(buffer_text: str, memories_text: str, trigger: str) -> dict | None:
+async def call_terry(
+    buffer_text: str,
+    memories_text: str,
+    trigger: str,
+    custom_emojis: list[str] | None = None,
+) -> dict | None:
     """
     One combined LLM call. Returns parsed JSON:
-        {"respond": bool, "message": str|None, "add_memory": str|None}
+        {"respond": bool, "message": str|None, "react": str|None, "add_memory": str|None}
     or None on any error.
     """
     try:
@@ -114,7 +113,7 @@ async def call_terry(buffer_text: str, memories_text: str, trigger: str) -> dict
             model=config.MODEL,
             max_tokens=config.MAX_OUTPUT_TOKENS,
             system=_system_blocks(memories_text),
-            messages=[{"role": "user", "content": _user_message(buffer_text, trigger)}],
+            messages=[{"role": "user", "content": _user_message(buffer_text, trigger, custom_emojis)}],
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
         )
     except Exception:
@@ -128,5 +127,6 @@ async def call_terry(buffer_text: str, memories_text: str, trigger: str) -> dict
         return None
 
     parsed.setdefault("message", None)
+    parsed.setdefault("react", None)
     parsed.setdefault("add_memory", None)
     return parsed
