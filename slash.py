@@ -82,5 +82,28 @@ def setup(bot) -> None:
             f"removed nickname `{nickname}` from {user.display_name}", ephemeral=True
         )
 
+    @group.command(name="say", description="send a message as terry")
+    @app_commands.describe(text="message to send", channel="channel to send it in (defaults to current)")
+    async def say_cmd(
+        interaction: discord.Interaction,
+        text: str,
+        channel: discord.TextChannel | None = None,
+    ):
+        if not _is_admin(interaction):
+            await interaction.response.send_message(
+                "this command is admin-only", ephemeral=True
+            )
+            return
+        target = channel or interaction.channel
+        await interaction.response.defer(ephemeral=True)
+        await target.send(text)
+        log.info(
+            f"admin {interaction.user} spoke as terry in #{target.name} "
+            f"(guild {interaction.guild_id}): {text[:80]}"
+        )
+        await interaction.followup.send(
+            f"sent to {target.mention}", ephemeral=True
+        )
+
     bot.tree.add_command(group)
     log.info("slash commands registered")
