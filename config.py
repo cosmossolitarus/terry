@@ -39,4 +39,4 @@ ADMIN_USERS: dict[int, list[int]] = {
 }
 
 # --- ensure data dirs exist ---
-(DATA_DIR / "memories").mkdir(parents=True, exist_ok=True)
+(DATA_DIR / "nicknames").mkdir(parents=True, exist_ok=True)

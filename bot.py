@@ -7,7 +7,7 @@ from discord.ext import commands
 import config
 import gating
 import llm
-import memory
+import nicknames
 import slash
 from context import ChannelContext
 
@@ -97,7 +97,7 @@ async def on_message(message: discord.Message):
     try:
         result = await llm.call_terry(
             buffer_text=ctx.render_for_prompt(),
-            memories_text=memory.read(message.guild.id),
+            nicknames_text=nicknames.render_for_prompt(message.guild.id),
             trigger=trigger,
             custom_emojis=custom_emojis,
         )
@@ -109,9 +109,13 @@ async def on_message(message: discord.Message):
         state.record_decision(did_respond=False)
         return
 
-    if result.get("add_memory"):
-        memory.append(message.guild.id, result["add_memory"])
-        log.info(f"memory added: {result['add_memory'][:80]}")
+    nick_data = result.get("add_nickname")
+    if isinstance(nick_data, dict):
+        user_id = nick_data.get("user_id")
+        nickname = nick_data.get("nickname")
+        if user_id and nickname:
+            nicknames.add_nickname(message.guild.id, user_id, nickname)
+            log.info(f"nickname added: {user_id} -> {nickname}")
 
     should_respond = bool(result.get("respond"))
     msg_text = result.get("message")

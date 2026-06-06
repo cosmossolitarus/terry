@@ -12,13 +12,13 @@ _PERSONA = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding
 _client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
 
 
-def _system_blocks(memories_text: str) -> list[dict]:
+def _system_blocks(nicknames_text: str) -> list[dict]:
     body = (
         _PERSONA.strip()
         + f"\n\n<cosmos_user_id>{config.COSMOS_USER_ID}</cosmos_user_id>\n\n"
-        + "<memories>\n"
-        + (memories_text.strip() or "(no memories yet)")
-        + "\n</memories>"
+        + "<nicknames>\n"
+        + (nicknames_text.strip() or "(no nicknames yet)")
+        + "\n</nicknames>"
     )
     return [
         {
@@ -99,20 +99,21 @@ def _parse_json(raw: str) -> dict | None:
 
 async def call_terry(
     buffer_text: str,
-    memories_text: str,
+    nicknames_text: str,
     trigger: str,
     custom_emojis: list[str] | None = None,
 ) -> dict | None:
     """
     One combined LLM call. Returns parsed JSON:
-        {"respond": bool, "message": str|None, "react": str|None, "add_memory": str|None}
+        {"respond": bool, "message": str|None, "react": str|None,
+         "add_nickname": {"user_id": str, "nickname": str}|None}
     or None on any error.
     """
     try:
         response = await _client.messages.create(
             model=config.MODEL,
             max_tokens=config.MAX_OUTPUT_TOKENS,
-            system=_system_blocks(memories_text),
+            system=_system_blocks(nicknames_text),
             messages=[{"role": "user", "content": _user_message(buffer_text, trigger, custom_emojis)}],
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
         )
@@ -128,5 +129,5 @@ async def call_terry(
 
     parsed.setdefault("message", None)
     parsed.setdefault("react", None)
-    parsed.setdefault("add_memory", None)
+    parsed.setdefault("add_nickname", None)
     return parsed
