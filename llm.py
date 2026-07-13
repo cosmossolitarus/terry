@@ -2,11 +2,26 @@ import json
 import logging
 from pathlib import Path
 
+import anthropic
 from anthropic import AsyncAnthropic
 
 import config
 
 log = logging.getLogger("terry.llm")
+
+# sentinel return value distinct from None (ordinary failure) and dict (success):
+# the anthropic account is out of credits, so no api call can succeed.
+OUT_OF_CREDITS = object()
+
+
+def _is_out_of_credits(exc: Exception) -> bool:
+    """
+    when the account balance hits $0, anthropic returns a 400 whose message reads
+    'Your credit balance is too low to access the Claude API...'. that's a real,
+    catchable signal — no email/webhook needed. we match on it so terry's death
+    scene only fires on genuine credit exhaustion, not a transient network blip.
+    """
+    return isinstance(exc, anthropic.BadRequestError) and "credit balance" in str(exc).lower()
 
 _PERSONA = (Path(__file__).parent / "prompts" / "system.txt").read_text(encoding="utf-8")
 _client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
@@ -107,7 +122,8 @@ async def call_terry(
     One combined LLM call. Returns parsed JSON:
         {"respond": bool, "message": str|None, "react": str|None,
          "add_nickname": {"user_id": str, "nickname": str}|None}
-    or None on any error.
+    None on any ordinary error, or the OUT_OF_CREDITS sentinel when the account balance
+    is exhausted (so bot.py can trigger terry's final message).
     """
     try:
         response = await _client.messages.create(
@@ -117,7 +133,10 @@ async def call_terry(
             messages=[{"role": "user", "content": _user_message(buffer_text, trigger, custom_emojis)}],
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
         )
-    except Exception:
+    except Exception as e:
+        if _is_out_of_credits(e):
+            log.error("anthropic credit balance exhausted — terry is dead")
+            return OUT_OF_CREDITS
         log.exception("anthropic api call failed")
         return None
 

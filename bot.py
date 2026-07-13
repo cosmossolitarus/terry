@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 
 import config
+import death
 import gating
 import llm
 import nicknames
@@ -104,10 +105,35 @@ async def on_message(message: discord.Message):
     finally:
         state.is_thinking = False
 
+    # credits exhausted: terry can't use the api, so he says his one canned goodbye
+    # (referencing the last message he responded to) and then goes silent until credits
+    # return and calls start succeeding again.
+    if result is llm.OUT_OF_CREDITS:
+        goodbye = death.get_state().next_goodbye()
+        if goodbye:
+            try:
+                sent = await message.channel.send(
+                    goodbye,
+                    allowed_mentions=discord.AllowedMentions(
+                        everyone=False, roles=False, users=True
+                    ),
+                )
+                ctx.add(sent, is_terry=True)
+                log.info(f"terry's final message sent: {goodbye[:80]}")
+            except Exception:
+                log.exception("failed to send terry's final message")
+        else:
+            log.info("terry is dead and already said goodbye — staying silent")
+        state.record_decision(did_respond=False)
+        return
+
     if result is None:
         log.warning("no usable response from llm")
         state.record_decision(did_respond=False)
         return
+
+    # a successful call means terry is alive — clears the death latch if he'd died.
+    death.get_state().revive()
 
     nick_data = result.get("add_nickname")
     if isinstance(nick_data, dict):
@@ -150,6 +176,8 @@ async def on_message(message: discord.Message):
             log.exception("failed to send terry's message")
 
     if did_act:
+        # remember what terry just responded to, in case this is his last act before death.
+        death.get_state().record_success(message.author, message.content)
         state.record_decision(did_respond=True)
     else:
         log.info("terry stayed silent")
